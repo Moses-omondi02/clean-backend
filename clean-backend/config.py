@@ -48,12 +48,12 @@ class ProductionConfig(Config):
     REMEMBER_COOKIE_SECURE = True
 
     # Database must be provided via DATABASE_URL in production
-    @property
-    def SQLALCHEMY_DATABASE_URI(self):
+    def __init__(self):
+        super().__init__()
         uri = os.environ.get('DATABASE_URL')
         if not uri:
             raise ValueError("DATABASE_URL environment variable is required for production")
-        return uri
+        self.SQLALCHEMY_DATABASE_URI = uri
 
 
 class DevelopmentConfig(Config):

@@ -3,7 +3,7 @@ services:
     name: agri-smart-detect-backend
     runtime: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "cd server && python run.py"
+    startCommand: "python run.py"
     envVars:
       - key: FLASK_ENV
         value: production
@@ -16,8 +16,9 @@ services:
       - key: PLANT_ID_API_KEY
         sync: false  # Set this manually in Render dashboard
       - key: FRONTEND_URL
-        value: https://agri-smart-detect.onrender.com
+        value: https://agri-smart-detect-frontend.onrender.com
     databases:
       - name: agri-smart-detect-db
         databaseName: agri_smart_detect
         user: agri_user
+        postgresMajorVersion: 15
