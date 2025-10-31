@@ -2,8 +2,8 @@ services:
   - type: web
     name: agri-smart-detect-backend
     runtime: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python run.py"
+    buildCommand: "cd clean-backend && pip install -r requirements.txt"
+    startCommand: "cd clean-backend && python run.py"
     envVars:
       - key: FLASK_ENV
         value: production

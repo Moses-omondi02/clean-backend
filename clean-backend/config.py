@@ -33,7 +33,7 @@ class Config:
     APP_NAME = 'Agri Smart Detect'
 
     # Plant.id API Configuration
-    PLANT_ID_API_KEY = os.environ.get('PLANT_ID_API_KEY', '8VY7pHmuqNXEt7WlEclcIazuj24GUivdJbSXxJXviDYGTuixpg')
+    PLANT_ID_API_KEY = os.environ.get('PLANT_ID_API_KEY')
     PLANT_ID_API_URL = 'https://api.plant.id/v2/identify'
 
     # Frontend URL for email links
