@@ -53,6 +53,9 @@ class ProductionConfig(Config):
         uri = os.environ.get('DATABASE_URL')
         if not uri:
             raise ValueError("DATABASE_URL environment variable is required for production")
+        # Railway provides DATABASE_URL, ensure it's PostgreSQL compatible
+        if uri.startswith('postgres://'):
+            uri = uri.replace('postgres://', 'postgresql://', 1)
         self.SQLALCHEMY_DATABASE_URI = uri
 
 
