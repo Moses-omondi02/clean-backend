@@ -19,7 +19,8 @@ class Config:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://agri-smart-detect.onrender.com",
-        "https://agri-smart-detect-frontend.onrender.com"
+        "https://agri-smart-detect-frontend.onrender.com",
+        "https://agri-smart-detect-backend-3-m0y3.onrender.com"  # Allow backend URL for testing
     ]
 
     # File upload configuration

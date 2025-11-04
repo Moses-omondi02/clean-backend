@@ -43,6 +43,10 @@ def register():
         db.session.add(user)
         db.session.commit()
 
+        # Generate access token for immediate login
+        access_token = user.generate_token()
+        refresh_token = create_refresh_token(identity=user.id)
+
         # Send welcome email
         try:
             email_service = EmailService()
@@ -53,7 +57,9 @@ def register():
 
         return jsonify({
             'message': 'User registered successfully',
-            'user': user.to_dict()
+            'user': user.to_dict(),
+            'access_token': access_token,
+            'refresh_token': refresh_token
         }), 201
 
     except Exception as e:
