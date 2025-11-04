@@ -8,6 +8,7 @@ class Report(db.Model):
     crop_name = db.Column(db.String(100), nullable=False)
     confidence = db.Column(db.Float, nullable=False)
     image_path = db.Column(db.String(200))
+    image_hash = db.Column(db.String(64), index=True) 
     symptoms_description = db.Column(db.Text)
     location = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -25,6 +26,7 @@ class Report(db.Model):
             'crop_name': self.crop_name,
             'confidence': round(self.confidence * 100, 2),
             'image_path': self.image_path,
+            'image_hash': self.image_hash,
             'symptoms_description': self.symptoms_description,
             'location': self.location,
             'created_at': self.created_at.isoformat(),

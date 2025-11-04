@@ -16,61 +16,85 @@ diagnosis_bp = Blueprint('diagnosis', __name__)
 def scan_image():
     try:
         user_id = get_jwt_identity()
-        
+
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
-        
+
         image_file = request.files['image']
         if image_file.filename == '':
             return jsonify({'error': 'No image selected'}), 400
-        
+
         # Validate file type
         allowed_extensions = {'png', 'jpg', 'jpeg', 'webp'}
         if '.' not in image_file.filename or \
            image_file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
             return jsonify({'error': 'Invalid file type. Please upload PNG, JPG, or WebP images.'}), 400
-        
+
         # Validate file size (10MB max)
         if len(image_file.read()) > 10 * 1024 * 1024:
             return jsonify({'error': 'Image size too large. Maximum size is 10MB.'}), 400
         image_file.seek(0)  # Reset file pointer
-        
-        # Save uploaded image
+
+        # Save uploaded image temporarily
         filename = f"{uuid.uuid4()}_{image_file.filename}"
         upload_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'uploads')
         os.makedirs(upload_folder, exist_ok=True)
         image_path = os.path.join(upload_folder, filename)
         image_file.save(image_path)
-        
-        # Use Plant.id API for real plant identification
+
+        # Compute image hash for duplicate detection
         plant_id_service = PlantIdService()
-        analysis_result = plant_id_service.identify_plant(image_path)
-        
-        # Create report
+        image_hash = plant_id_service.compute_image_hash(image_path)
+
+        # Check if this image has been analyzed before (by any user)
+        cached_report = Report.query.filter_by(image_hash=image_hash).first()
+
+        if cached_report:
+            # Use cached results instead of calling API
+            print(f"Using cached results for image hash: {image_hash}")
+            analysis_result = {
+                'plantName': cached_report.crop_name,
+                'isHealthy': cached_report.is_healthy,
+                'disease': cached_report.disease.name if cached_report.disease else None,
+                'confidence': cached_report.confidence * 100,
+                'treatment': cached_report.recommended_treatment,
+                'prevention': cached_report.prevention_tips,
+                'image_hash': image_hash,
+                'details': {},
+                'cached': True  # Flag to indicate cached result
+            }
+        else:
+            # No cache found, call Plant.id API
+            print(f"No cache found, calling Plant.id API for hash: {image_hash}")
+            analysis_result = plant_id_service.identify_plant(image_path)
+            analysis_result['cached'] = False
+
+        # Create report for current user
         report = Report(
             user_id=user_id,
             crop_name=analysis_result['plantName'],
             confidence=analysis_result['confidence'] / 100.0,
             image_path=image_path,
+            image_hash=image_hash,  # Store hash for future lookups
             is_healthy=analysis_result['isHealthy'],
             recommended_treatment=analysis_result['treatment'],
             prevention_tips=analysis_result.get('prevention', '')
         )
-        
+
         # Link to disease if not healthy
         if not analysis_result['isHealthy'] and analysis_result['disease']:
             disease = Disease.query.filter_by(name=analysis_result['disease']).first()
             if disease:
                 report.disease_id = disease.id
-        
+
         db.session.add(report)
         db.session.commit()
-        
+
         # Send email report to user
         try:
             user = User.query.get(user_id)
             email_service = EmailService()
-            
+
             report_data = {
                 'crop_name': analysis_result['plantName'],
                 'is_healthy': analysis_result['isHealthy'],
@@ -80,22 +104,22 @@ def scan_image():
                 'treatment': analysis_result['treatment'],
                 'prevention': analysis_result.get('prevention', '')
             }
-            
+
             email_service.send_disease_report(user.email, user.name, report_data)
         except Exception as e:
             print(f"Failed to send email report: {e}")
             # Don't fail the scan if email fails
-        
+
         # Clean up: Remove uploaded image after processing (optional)
         # os.remove(image_path)
-        
+
         return jsonify({
             'message': 'Analysis complete using AI',
             'analysis': analysis_result,
             'report_id': report.id,
             'api_used': 'Plant.id'
         }), 200
-        
+
     except Exception as e:
         # Clean up uploaded file if error occurs
         if 'image_path' in locals() and os.path.exists(image_path):
@@ -107,11 +131,11 @@ def scan_image():
 def get_diseases():
     try:
         diseases = Disease.query.all()
-        
+
         return jsonify({
             'diseases': [disease.to_dict() for disease in diseases]
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -120,14 +144,16 @@ def health_check():
     """Check if Plant.id API is working"""
     try:
         plant_id_service = PlantIdService()
-        
+
         # Test with a small request or just check API key format
+
+        plant_id_service.identify_plant('https://example.com/test-image.jpg')
         return jsonify({
             'status': 'healthy',
             'plant_id_api': 'configured',
             'message': 'Plant.id API is ready to use'
         }), 200
-        
+
     except Exception as e:
         return jsonify({
             'status': 'error',
