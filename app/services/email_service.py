@@ -15,7 +15,7 @@ class EmailService:
     
     def send_welcome_email(self, user_email, user_name):
         """Send welcome email after registration"""
-        subject = f"🌱 Welcome to {self.app_name} - Start Your Smart Farming Journey!"
+        subject = f"Welcome to {self.app_name} - Start Your Smart Farming Journey!"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -77,7 +77,7 @@ class EmailService:
         status_text = "Healthy" if report_data['is_healthy'] else "Disease Detected"
         status_color = "#2d5016" if report_data['is_healthy'] else "#e65100"
         
-        subject = f"{status_emoji} Crop Analysis Report: {report_data['crop_name']} - {status_text}"
+        subject = f"Crop Analysis Report: {report_data['crop_name']} - {status_text}"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -150,7 +150,7 @@ class EmailService:
     
     def send_password_reset(self, user_email, reset_token):
         """Send password reset email"""
-        subject = "🔐 Reset Your Agri Smart Detect Password"
+        subject = "Reset Your Agri Smart Detect Password"
         
         reset_url = f"{self.frontend_url}/reset-password?token={reset_token}"
         
