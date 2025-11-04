@@ -50,7 +50,7 @@ class ProductionConfig(Config):
     # Database must be provided via DATABASE_URL in production
     @property
     def SQLALCHEMY_DATABASE_URI(self):
-        uri = os.environ.get('DATABASE_URL')
+        uri = ProdutionConfig.SQLALCHEMY_DATABASE_URI or 'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
         if not uri:
             raise ValueError("DATABASE_URL environment variable is required for production")
         # Render/Railway may provide postgres://, SQLAlchemy needs postgresql://
