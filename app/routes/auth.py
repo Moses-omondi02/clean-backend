@@ -36,7 +36,9 @@ def register():
         # Create new user
         user = User(
             name=data['name'],
-            email=data['email']
+            email=data['email'],
+            country=data.get('country'),
+            phone_number=data.get('phoneNumber')
         )
         user.set_password(data['password'])
 
@@ -131,7 +133,7 @@ def update_profile():
         data = request.get_json()
 
         # Update allowed fields
-        allowed_fields = ['name']
+        allowed_fields = ['name', 'country', 'phone_number']
         for field in allowed_fields:
             if field in data:
                 setattr(user, field, data[field])
