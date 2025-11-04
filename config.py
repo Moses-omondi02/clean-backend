@@ -49,15 +49,12 @@ class ProductionConfig(Config):
     REMEMBER_COOKIE_SECURE = True
 
     # Database must be provided via DATABASE_URL in production
-    @property
-    def SQLALCHEMY_DATABASE_URI(self):
-        uri = os.environ.get('DATABASE_URL')
-        if not uri:
-            raise ValueError("DATABASE_URL environment variable is required for production")
-        # Render/Railway may provide postgres://, SQLAlchemy needs postgresql://
-        if uri.startswith('postgres://'):
-            uri = uri.replace('postgres://', 'postgresql://', 1)
-        return uri
+    # Override the parent class's SQLALCHEMY_DATABASE_URI
+    # Render/Railway may provide postgres://, SQLAlchemy needs postgresql://
+    _db_uri = os.environ.get('DATABASE_URL', '')
+    if _db_uri.startswith('postgres://'):
+        _db_uri = _db_uri.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = _db_uri or None
 
 
 class DevelopmentConfig(Config):

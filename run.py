@@ -38,11 +38,33 @@ def init_sample_data():
 # Initialize database tables and sample data when app starts
 with app.app_context():
     try:
+        # Log database URI (without password) for debugging
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')
+        if db_uri and db_uri != 'Not set':
+            # Mask password in URI for logging
+            import re
+            masked_uri = re.sub(r'://([^:]+):([^@]+)@', r'://\1:****@', db_uri)
+            print(f"📊 Database URI: {masked_uri}")
+        else:
+            print("⚠️ WARNING: SQLALCHEMY_DATABASE_URI is not set!")
+        
+        # Test database connection
+        db.session.execute(db.text('SELECT 1'))
+        print("✅ Database connection successful!")
+        
+        # Create tables
         db.create_all()
+        print("✅ Database tables created!")
+        
+        # Initialize sample data
         init_sample_data()
         print("✅ Database initialized successfully!")
     except Exception as e:
-        print(f"⚠️ Database initialization warning: {e}")
+        import traceback
+        print(f"❌ Database initialization error: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        # Don't crash the app, but log the error
+        print("⚠️ App will start but database operations may fail!")
 
 if __name__ == '__main__':
     # This block only runs when using Flask dev server (not with gunicorn)

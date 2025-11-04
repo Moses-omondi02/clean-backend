@@ -67,7 +67,15 @@ def register():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Registration failed', 'details': str(e)}), 500
+        import traceback
+        error_details = {
+            'error': 'Registration failed',
+            'message': str(e),
+            'type': type(e).__name__
+        }
+        # Log full traceback for debugging
+        print(f"Registration error: {traceback.format_exc()}")
+        return jsonify(error_details), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

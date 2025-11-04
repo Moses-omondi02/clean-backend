@@ -2,7 +2,7 @@ services:
   - type: web
     name: agri-smart-detect-backend
     runtime: python
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt && python init_db.py"
     startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 'app:create_app()'"
     envVars:
       - key: PYTHON_VERSION
