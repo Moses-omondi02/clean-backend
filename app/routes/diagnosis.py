@@ -16,12 +16,17 @@ diagnosis_bp = Blueprint('diagnosis', __name__)
 def scan_image():
     try:
         user_id = get_jwt_identity()
+        print(f"Scan request from user: {user_id}")
 
         if 'image' not in request.files:
+            print("Error: No image in request.files")
             return jsonify({'error': 'No image provided'}), 400
 
         image_file = request.files['image']
+        print(f"Image file received: {image_file.filename}")
+
         if image_file.filename == '':
+            print("Error: Empty filename")
             return jsonify({'error': 'No image selected'}), 400
 
         # Validate file type
@@ -46,28 +51,11 @@ def scan_image():
         plant_id_service = PlantIdService()
         image_hash = plant_id_service.compute_image_hash(image_path)
 
-        # Check if this image has been analyzed before (by any user)
-        cached_report = Report.query.filter_by(image_hash=image_hash).first()
-
-        if cached_report:
-            # Use cached results instead of calling API
-            print(f"Using cached results for image hash: {image_hash}")
-            analysis_result = {
-                'plantName': cached_report.crop_name,
-                'isHealthy': cached_report.is_healthy,
-                'disease': cached_report.disease.name if cached_report.disease else None,
-                'confidence': cached_report.confidence * 100,
-                'treatment': cached_report.recommended_treatment,
-                'prevention': cached_report.prevention_tips,
-                'image_hash': image_hash,
-                'details': {},
-                'cached': True  # Flag to indicate cached result
-            }
-        else:
-            # No cache found, call Plant.id API
-            print(f"No cache found, calling Plant.id API for hash: {image_hash}")
-            analysis_result = plant_id_service.identify_plant(image_path)
-            analysis_result['cached'] = False
+        # USE MOCK DATA INSTEAD OF API CALL
+        print(f"Using mock data for demonstration (API disabled)")
+        analysis_result = plant_id_service._get_mock_analysis()
+        analysis_result['image_hash'] = image_hash
+        analysis_result['cached'] = False
 
         # Create report for current user
         report = Report(
@@ -125,6 +113,12 @@ def scan_image():
         if 'image_path' in locals() and os.path.exists(image_path):
             os.remove(image_path)
         db.session.rollback()
+        
+        # Log the full error
+        import traceback
+        print(f"Error in scan_image: {str(e)}")
+        traceback.print_exc()
+        
         return jsonify({'error': str(e)}), 500
 
 @diagnosis_bp.route('/diseases', methods=['GET'])

@@ -6,7 +6,7 @@ class EmailService:
     def __init__(self):
         self.api_key = current_app.config.get('RESEND_API_KEY')
         self.from_email = current_app.config.get('RESEND_FROM_EMAIL')
-        self.app_name = current_app.config.get('APP_NAME')
+        self.app_name = current_app.config.get('APP_NAME') or "Agri-Smart Detect App"
         self.frontend_url = current_app.config.get('FRONTEND_URL', 'https://agri-smart-detect.onrender.com')
         
         # Configure Resend API key
@@ -15,7 +15,7 @@ class EmailService:
     
     def send_welcome_email(self, user_email, user_name):
         """Send welcome email after registration"""
-        subject = f"Welcome to {self.app_name} - Start Your Smart Farming Journey!"
+        subject = "Welcome - Start Your Smart Farming Journey!"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -214,7 +214,7 @@ class EmailService:
             params = {
                 "from": self.from_email,
                 "to": [to_email],
-                "subject": subject,
+                "subject": subject or "Agri Smart Detect",
                 "html": html_content
             }
             

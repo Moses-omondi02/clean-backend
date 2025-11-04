@@ -30,10 +30,12 @@ class PlantIdService:
             identification = api.identify(
                 image_path,
                 details=['common_names', 'url', 'description', 'taxonomy'],
-                language='en'
+                language='en',
+                health='all',  # Request health assessment
+                as_dict=True  # Get response as dictionary
             )
 
-            print(f"Plant.id API response received")
+            print(f"Plant.id API response received: {type(identification)}")
             
             # Parse the response
             result = self._parse_kindwise_response(identification)
