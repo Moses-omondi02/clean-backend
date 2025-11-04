@@ -1,9 +1,10 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, create_access_token, create_refresh_token, get_jwt_identity
+from flask_jwt_extended import jwt_required, create_refresh_token, get_jwt_identity
+import re
+
 from app.models.user import User
 from app.services.email_service import EmailService
-from app import bcrypt, db
-import re
+from app import db
 
 auth_bp = Blueprint('auth', __name__)
 
