@@ -12,3 +12,5 @@ psycopg2-binary==2.9.11
 requests==2.32.5
 greenlet==3.2.4
 typing-extensions==4.12.2
+Pillow==10.1.0
+kindwise-api-client==0.7.2

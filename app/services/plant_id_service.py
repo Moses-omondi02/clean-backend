@@ -1,14 +1,11 @@
-import requests
-import json
 from flask import current_app
-import base64
-import os
 import hashlib
+import os
+from kindwise import PlantApi
 
 class PlantIdService:
     def __init__(self):
         self.api_key = current_app.config.get('PLANT_ID_API_KEY')
-        self.api_url = current_app.config.get('PLANT_ID_API_URL')
 
     def compute_image_hash(self, image_path):
         """Compute SHA-256 hash of image file for duplicate detection"""
@@ -20,54 +17,33 @@ class PlantIdService:
         return sha256_hash.hexdigest()
 
     def identify_plant(self, image_path):
-        """Identify plant and diseases using Plant.id API"""
+        """Identify plant and diseases using Plant.id API via kindwise client"""
         try:
             # Compute image hash first
             image_hash = self.compute_image_hash(image_path)
 
-            # Encode image to base64
-            with open(image_path, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+            # Initialize Plant.id API client
+            api = PlantApi(api_key=self.api_key)
 
-            # Prepare API request
-            headers = {
-                "Content-Type": "application/json",
-                "Api-Key": self.api_key
-            }
+            # Identify plant with health assessment
+            print(f"Calling Plant.id API for image: {image_path}")
+            identification = api.identify(
+                image_path,
+                details=['common_names', 'url', 'description', 'taxonomy'],
+                language='en'
+            )
 
-            data = {
-                "images": [base64_image],
-                "modifiers": ["crops_fast", "similar_images"],
-                "plant_details": [
-                    "common_names",
-                    "url",
-                    "description",
-                    "taxonomy",
-                    "rank",
-                    "gbif_id",
-                    "inaturalist_id",
-                    "image",
-                    "synonyms"
-                ],
-                "disease_details": "all"
-            }
-
-            # Make API request
-            response = requests.post(self.api_url, headers=headers, json=data)
-
-            if response.status_code == 200:
-                result = self._parse_plant_response(response.json())
-                result['image_hash'] = image_hash
-                return result
-            elif response.status_code == 401:
-                raise Exception("Invalid Plant.id API key")
-            elif response.status_code == 429:
-                raise Exception("Plant.id API rate limit exceeded")
-            else:
-                raise Exception(f"Plant.id API error: {response.status_code}")
+            print(f"Plant.id API response received")
+            
+            # Parse the response
+            result = self._parse_kindwise_response(identification)
+            result['image_hash'] = image_hash
+            return result
 
         except Exception as e:
             print(f"Plant.id API error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             # Fallback to mock data if API fails
             result = self._get_mock_analysis()
             # Compute hash even for mock data
@@ -77,83 +53,67 @@ class PlantIdService:
                 result['image_hash'] = None
             return result
 
-    def _parse_plant_response(self, api_response):
-        """Parse Plant.id API response into our format"""
-        if not api_response.get('suggestions') or len(api_response['suggestions']) == 0:
+    def _parse_kindwise_response(self, identification):
+        """Parse kindwise API client response into our format"""
+        try:
+            # The kindwise client returns a dict with 'result' key
+            result = identification.get('result', identification)
+            
+            # Get classification suggestions
+            classification = result.get('classification', {})
+            suggestions = classification.get('suggestions', [])
+            
+            if not suggestions:
+                print("No plant suggestions found, using mock data")
+                return self._get_mock_analysis()
+
+            best_match = suggestions[0]
+            plant_name = best_match.get('name', 'Unknown Plant')
+            confidence = best_match.get('probability', 0) * 100
+
+            # Get health assessment
+            is_healthy_assessment = result.get('is_healthy', {})
+            is_healthy = is_healthy_assessment.get('binary', True)
+            health_probability = is_healthy_assessment.get('probability', 1.0)
+
+            # Get disease information if plant is unhealthy
+            disease_name = None
+            if not is_healthy:
+                disease_suggestions = result.get('disease', {}).get('suggestions', [])
+                if disease_suggestions:
+                    disease_name = disease_suggestions[0].get('name', 'Unknown Disease')
+                else:
+                    disease_name = 'Possible Disease Detected'
+
+            # Get disease info for treatment
+            disease_info = {'name': disease_name, 'type': 'unknown'}
+            
+            # Get treatment recommendations
+            treatment_info = self._get_treatment_recommendations(disease_info, plant_name)
+
+            # Get plant details
+            details = best_match.get('details', {})
+
+            return {
+                'plantName': plant_name,
+                'isHealthy': is_healthy,
+                'disease': disease_name,
+                'confidence': round(confidence, 1),
+                'treatment': treatment_info['treatment'],
+                'prevention': treatment_info['prevention'],
+                'details': {
+                    'commonNames': details.get('common_names', [plant_name]),
+                    'description': details.get('description', {}).get('value', '') if isinstance(details.get('description'), dict) else details.get('description', ''),
+                    'scientificName': details.get('scientific_name', ''),
+                    'family': details.get('taxonomy', {}).get('family', '') if isinstance(details.get('taxonomy'), dict) else ''
+                },
+                'similarImages': []
+            }
+        except Exception as e:
+            print(f"Error parsing kindwise response: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return self._get_mock_analysis()
-
-        best_match = api_response['suggestions'][0]
-        plant_name = best_match.get('plant_name', 'Unknown Plant')
-        confidence = best_match.get('probability', 0) * 100
-
-        # Check if plant is healthy based on disease indicators
-        is_healthy = self._check_plant_health(plant_name, best_match)
-
-        # Get disease information
-        disease_info = self._identify_disease(plant_name, best_match)
-
-        # Get treatment recommendations
-        treatment_info = self._get_treatment_recommendations(disease_info, plant_name)
-
-        return {
-            'plantName': plant_name,
-            'isHealthy': is_healthy,
-            'disease': disease_info['name'],
-            'confidence': round(confidence, 1),
-            'treatment': treatment_info['treatment'],
-            'prevention': treatment_info['prevention'],
-            'details': {
-                'commonNames': best_match.get('plant_details', {}).get('common_names', []),
-                'description': best_match.get('plant_details', {}).get('description', {}).get('value', ''),
-                'scientificName': best_match.get('plant_details', {}).get('scientific_name'),
-                'family': best_match.get('plant_details', {}).get('family')
-            },
-            'similarImages': best_match.get('similar_images', [])[:3]  # Limit to 3 similar images
-        }
-
-    def _check_plant_health(self, plant_name, plant_data):
-        """Check if plant is healthy based on name and description"""
-        disease_indicators = [
-            'spot', 'rot', 'blight', 'mildew', 'rust', 'mosaic', 'wilt',
-            'canker', 'gall', 'scab', 'yellow', 'brown', 'black', 'fungus',
-            'disease', 'infected', 'sick', 'virus', 'bacterial'
-        ]
-
-        plant_name_lower = plant_name.lower()
-        description = plant_data.get('plant_details', {}).get('description', {}).get('value', '').lower()
-
-        # Check if plant name or description contains disease indicators
-        for indicator in disease_indicators:
-            if indicator in plant_name_lower or indicator in description:
-                return False
-
-        return True
-
-    def _identify_disease(self, plant_name, plant_data):
-        """Identify specific disease based on plant data"""
-        if self._check_plant_health(plant_name, plant_data):
-            return {'name': None, 'type': 'healthy'}
-
-        plant_name_lower = plant_name.lower()
-        description = plant_data.get('plant_details', {}).get('description', {}).get('value', '').lower()
-
-        # Common African crop diseases mapping
-        disease_mappings = {
-            'rust': 'Leaf Rust',
-            'mildew': 'Powdery Mildew',
-            'blight': 'Leaf Blight',
-            'spot': 'Leaf Spot',
-            'mosaic': 'Mosaic Virus',
-            'wilt': 'Bacterial Wilt',
-            'rot': 'Root Rot',
-            'canker': 'Bacterial Canker'
-        }
-
-        for key, disease in disease_mappings.items():
-            if key in plant_name_lower or key in description:
-                return {'name': disease, 'type': 'fungal' if key in ['rust', 'mildew', 'blight', 'spot', 'rot'] else 'viral'}
-
-        return {'name': 'Unknown Plant Disease', 'type': 'unknown'}
 
     def _get_treatment_recommendations(self, disease_info, plant_name):
         """Get treatment recommendations based on disease"""
@@ -216,7 +176,9 @@ class PlantIdService:
                 'prevention': 'Use resistant varieties and avoid overhead watering.',
                 'details': {
                     'commonNames': ['Corn', 'Maize'],
-                    'description': 'Maize plant showing signs of leaf rust infection'
+                    'description': 'Maize plant showing signs of leaf rust infection',
+                    'scientificName': 'Zea mays',
+                    'family': 'Poaceae'
                 }
             },
             {
@@ -228,7 +190,9 @@ class PlantIdService:
                 'prevention': 'Maintain proper plant spacing and avoid nitrogen over-fertilization.',
                 'details': {
                     'commonNames': ['Cassava', 'Manioc'],
-                    'description': 'Cassava plant affected by powdery mildew'
+                    'description': 'Cassava plant affected by powdery mildew',
+                    'scientificName': 'Manihot esculenta',
+                    'family': 'Euphorbiaceae'
                 }
             },
             {
@@ -240,7 +204,9 @@ class PlantIdService:
                 'prevention': 'Continue current maintenance practices.',
                 'details': {
                     'commonNames': ['Tomato'],
-                    'description': 'Healthy tomato plant'
+                    'description': 'Healthy tomato plant',
+                    'scientificName': 'Solanum lycopersicum',
+                    'family': 'Solanaceae'
                 }
             }
         ]
