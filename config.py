@@ -6,7 +6,8 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'agri-smart-detect-secret-key-2024'
     # Use DATABASE_URL from environment, fallback to SQLite in instance folder
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # JWT Configuration
@@ -50,9 +51,12 @@ class ProductionConfig(Config):
     # Database must be provided via DATABASE_URL in production
     @property
     def SQLALCHEMY_DATABASE_URI(self):
-        uri = ProdutionConfig.SQLALCHEMY_DATABASE_URI or 'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
+        uri = os.environ.get('DATABASE_URL')
         if not uri:
             raise ValueError("DATABASE_URL environment variable is required for production")
+        # Render/Railway may provide postgres://, SQLAlchemy needs postgresql://
+        if uri.startswith('postgres://'):
+            uri = uri.replace('postgres://', 'postgresql://', 1)
         return uri
 
 
